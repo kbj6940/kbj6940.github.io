@@ -1,0 +1,380 @@
+#크롤링 원 코드 출처 : https://github.com/shjustinbaek/YonseiMileage/blob/master/Crawler.py
+#위 코드를Google Colaboratory에서 실행하기 위해 수정및 첨가 
+
+!apt-get update
+!apt install chromium-chromedriver
+!cp /usr/lib/chromium-browser/chromedriver /usr/bin
+!pip install selenium
+from selenium import webdriver
+options = webdriver.ChromeOptions()
+options.add_argument('--headless')
+options.add_argument('--no-sandbox')
+options.add_argument('--disable-dev-shm-usage')
+driver= webdriver.Chrome('chromedriver',options=options)
+
+from google.colab import drive #마운트 해 줌
+
+drive.mount('/content/gdrive')
+
+from selenium.webdriver.support.ui import Select
+
+from selenium.webdriver.support.ui import WebDriverWait
+
+from selenium.webdriver.support import expected_conditions as EC
+
+from selenium.webdriver.common.by import By
+
+import pandas as pd
+
+import csv
+
+
+
+total_cols = ['구분1','구분2','구분3','학정번호-분반-실습','과목명','학점','담당교수','강의시간','강의실','정원','참여인원',
+
+              '전공자 정원 (2전공포함)','학년별정원 1학년','학년별정원 2학년','학년별정원 3학년','학년별정원 4학년','교환학생 가능여부',
+
+              'Max Mileage','마일리지 최소값','마일리지 최대값', '마일리지 평균값'
+
+              '순위','마일리지','전공자/복수전공자(전공자정원포함여부)','신청과목수','졸업신청','초수강여부','총이수학점/졸업이수학점','직전학기이수학점/학기당수강학점','학년','수강여부','비고']
+
+
+# 용량이 커서 한학기를 3등분으로 나눠서 크롤링. 처음에는 open에서 parameter을 'w'로 써 주고 그 뒤로 이어 쓸 때는 'a'로 써줌
+f = open('/content/gdrive/My Drive/미니 프로젝트 : 연세대학교 마일리지/yonseimileage_2017_1.csv', 'w', encoding='ms949', newline='')
+
+wr = csv.writer(f)
+
+wr.writerow(total_cols)
+
+
+
+
+
+url = 'http://ysweb.yonsei.ac.kr:8888/curri120601/curri_new.jsp#top'
+
+driver.get(url)
+
+driver.implicitly_wait(3)
+
+#### wait 해야함
+
+
+
+#연도 설정
+
+#참고: 마일리지 제도는 2015년 2학기 때부터 시행되었음
+
+year_btn = Select(driver.find_element_by_css_selector('#HY'))
+
+year_options = [x.text for x in list(year_btn.options) if int(x.text) >= 2015]
+
+year_btn.select_by_visible_text('2017')
+
+
+
+#학기 설정
+
+semester = Select(driver.find_element_by_css_selector('#HG'))
+
+semester_options = [x.text for x in list(semester.options)]
+
+semester.select_by_visible_text('1학기')
+
+#주의할것 - 여름학기 겨울학기 필요 없음.
+
+
+
+#가장 왼쪽 box
+
+box1 = Select(driver.find_element_by_css_selector('#OCODE0'))
+
+box1_options = [x.text for x in list(box1.options)]
+
+box1_options = box1_options[:1] #Test 할때 한개만 돌리 위해서
+
+for option1 in box1_options:
+
+    box1.select_by_visible_text(option1)
+
+    #왼쪽에서 2번째 box
+
+    box2 = Select(driver.find_element_by_css_selector('#OCODE1'))
+
+    box2_options = [x.text for x in list(box2.options)]
+
+    box2_options.remove('계절학기')
+
+#여기 box2_option을 범위를 나눠서 크롤링   
+    
+    for option2 in box2_options[:15]:
+
+        box2.select_by_visible_text(option2)
+
+        #왼쪽에서 3번째 box
+
+        box3 = Select(driver.find_element_by_css_selector("#S2"))
+
+        box3_options = [x.text for x in list(box3.options) if x.text != '전체']
+
+        for option3 in box3_options:
+
+            box3.select_by_visible_text(option3)
+
+            search_btn = driver.find_element_by_css_selector("#myForm > table > tbody > tr:nth-child(1) > td:nth-child(1) > a:nth-child(6)")
+
+            search_btn.click()
+
+
+
+            #과목 정보 가져오기
+
+
+
+
+
+            # 페이지 수, 페이지 넘김 횟수 결정
+
+            # 한 페이지에 최대 15개 display함            '
+
+            content = WebDriverWait(driver, 3).until(
+
+                             EC.presence_of_element_located((By.CSS_SELECTOR, "#contenttablejqxgrid")))
+
+            # 게시글할 글이 있던 없던 row 태그는 15개씩 나온다. 게시글이 없다면. 비어있는 row 테그가 나온다.
+
+            pg_info = driver.find_element_by_css_selector('#pager > div > div > div:nth-child(3)').text
+
+            cls_num = int(pg_info.split()[-1])
+
+            next_click_num = None
+
+            if cls_num % 15 != 0:
+
+                next_click_num = cls_num // 15
+
+            else:
+
+                next_click_num = (cls_num // 15) - 1
+
+
+
+            # 정보 가져오기 (1페이지 읽고 -> 페이지 넘김 + 페이지 일고 x 넘김 횟수)
+
+            rows = content.find_elements_by_css_selector("div[role = 'row']")
+
+            rtn1 = []
+
+            for row in rows:
+
+                if row.text != '' and row.text != 'No data to display':
+
+                    try:
+
+                        mile = row.find_element_by_css_selector('div:nth-child(7) > span > a:nth-child(4)')
+
+                        mile.click()
+
+                        pop_up = driver.window_handles[1]
+
+                        driver.switch_to_window(pop_up)
+
+                        driver.implicitly_wait(3)
+
+
+
+                        # get_class_info
+
+                        cls_info = driver.find_element_by_css_selector(
+
+                            'body > form > table:nth-child(3) > tbody > tr:nth-child(4)')
+
+                        cls_child = cls_info.find_elements_by_css_selector("*")
+
+                        temp1 = [x.text for x in cls_child]
+
+
+
+                        # 마일리지 신청 조회
+
+                        mile_info = driver.find_element_by_css_selector("body > form > table:nth-child(9)")
+
+                        mile_rows = mile_info.find_elements_by_css_selector("tr")
+
+                        del mile_rows[1]
+
+                        mile_childs = [x.find_elements_by_css_selector("td") for x in mile_rows]
+
+                        temp2 = []
+
+                        for a in mile_childs:
+
+                            temp2.append(temp1 + [x.text for x in a])
+
+                        del temp2[0]
+
+                        rtn1.extend(temp2)
+
+
+
+                        driver.close()
+
+                        driver.switch_to_window(driver.window_handles[0])
+
+                    except:
+
+                        driver.close()
+
+                        driver.switch_to_window(driver.window_handles[0])
+
+                        print('unable to access info from {}'.format(row.text))
+
+                else:
+
+                    pass
+
+            for i in rtn1:
+
+                wr.writerow([option1,option2,option3] + i)
+
+                print('writing row...')
+
+            for i in range(next_click_num):
+
+                nxt = driver.find_element_by_css_selector('#pager > div > div > div:nth-child(1)')
+
+                driver.execute_script("arguments[0].click();", nxt)
+
+                content = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#contenttablejqxgrid")))
+
+                rows = content.find_elements_by_css_selector("div[role = 'row']")
+
+                rtn1 = []
+
+                for row in rows:
+
+                    if row.text != ''and row.text != 'No data to display':
+
+                        try:
+
+                            mile = row.find_element_by_css_selector('div:nth-child(7) > span > a:nth-child(4)')
+
+                            mile.click()
+
+                            pop_up = driver.window_handles[1]
+
+                            driver.switch_to_window(pop_up)
+
+                            driver.implicitly_wait(3)
+
+
+
+                            # get_class_info
+
+                            cls_info = driver.find_element_by_css_selector(
+
+                                'body > form > table:nth-child(3) > tbody > tr:nth-child(4)')
+
+                            cls_child = cls_info.find_elements_by_css_selector("*")
+
+                            temp1 = [x.text for x in cls_child]
+
+
+
+                            # 마일리지 신청 조회
+
+                            mile_info = driver.find_element_by_css_selector("body > form > table:nth-child(9)")
+
+                            mile_rows = mile_info.find_elements_by_css_selector("tr")
+
+                            del mile_rows[1]
+
+                            mile_childs = [x.find_elements_by_css_selector("td") for x in mile_rows]
+
+                            temp2 = []
+
+                            for a in mile_childs:
+
+                                temp2.append(temp1 + [x.text for x in a])
+
+                            del temp2[0]
+
+                            rtn1.extend(temp2)
+
+
+
+                            driver.close()
+
+                            driver.switch_to_window(driver.window_handles[0])
+
+                        except:
+
+                            driver.close()
+
+                            driver.switch_to_window(driver.window_handles[0])
+
+                            print('unable to access info from {}'.format(row.text))
+
+                    else:
+
+                        pass
+
+                for i in rtn1:
+
+                    wr.writerow([option1, option2, option3] + i)
+
+                    print('writing row...')
+
+
+
+f.close()
+
+
+# 크롤링 과정에서 마일리지,순위가 합쳐져서 나누기
+pd.set_option('display.max_rows',100)
+pd.set_option('display.max_columns',9999)
+
+
+df_2017_1 = pd.read_csv('/content/gdrive/My Drive/미니 프로젝트 : 연세대학교 마일리지/yonseimileage_2017_1.csv', encoding = 'cp949')
+df_2017_1.reset_index(level = 0, inplace = True)
+
+df_2018_1.columns = ['구분1',
+ '구분2',
+ '구분3',
+ '학정번호-분반-실습',
+ '과목명',
+ '학점',
+ '담당교수',
+ '강의시간',
+ '강의실',
+ '정원',
+ '참여인원',
+ '전공자 정원 (2전공포함)',
+ '학년별정원 1학년',
+ '학년별정원 2학년',
+ '학년별정원 3학년',
+ '학년별정원 4학년',
+ '교환학생 가능여부',
+ 'Max Mileage',
+ '마일리지 최소값',
+ '마일리지 최대값',
+ '마일리지 평균값',
+ '순위',
+ '마일리지',
+ '전공자/복수전공자(전공자정원포함여부)',
+ '신청과목수',
+ '졸업신청',
+ '초수강여부',
+ '총이수학점/졸업이수학점',
+ '직전학기이수학점/학기당수강학점',
+ '학년',
+ '수강여부',
+ '비고']
+ 
+
+
+
+
+
+
+
+

@@ -328,14 +328,15 @@ for option1 in box1_options:
 
 f.close()
 
+#위 과정을 마일리지가 있는 모든 학기를 가져오기
 
-# 크롤링 과정에서 마일리지,순위가 합쳐져서 나누기
+# 크롤링 과정에서 마일리지,순위가 합쳐져서 나누고 1,2학기 합쳐보자. 2018년을 예시로
 pd.set_option('display.max_rows',100)
 pd.set_option('display.max_columns',9999)
 
 
-df_2017_1 = pd.read_csv('/content/gdrive/My Drive/미니 프로젝트 : 연세대학교 마일리지/yonseimileage_2017_1.csv', encoding = 'cp949')
-df_2017_1.reset_index(level = 0, inplace = True)
+df_2018_1 = pd.read_csv('/content/gdrive/My Drive/미니 프로젝트 : 연세대학교 마일리지/yonseimileage_2018_1.csv', encoding = 'cp949')
+df_2018_1.reset_index(level = 0, inplace = True)
 
 df_2018_1.columns = ['구분1',
  '구분2',
@@ -369,6 +370,30 @@ df_2018_1.columns = ['구분1',
  '학년',
  '수강여부',
  '비고']
+ 
+ df_2018_1 = df_2018_![lambda x : x['구분1'] != '구분1']
+ 
+ 
+ #2018년 2학기를 불러와서 위와같이 해 줌
+ #그리고 1,2학기 합치자
+ 
+ df_2018 = pd.concat([df_2018_1,df_2018_2])
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
  
 
 
